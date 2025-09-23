@@ -7,7 +7,6 @@ public class Exercisi21 {
 
         System.out.print("Introdueix el nom del fitxer: ");
         String nomFitxer = in.nextLine();
-
         int comptador = 0;
 
         try (FileInputStream fis = new FileInputStream(nomFitxer)) {
