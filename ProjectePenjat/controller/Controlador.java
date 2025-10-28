@@ -8,11 +8,13 @@ public class Controlador {
     private ParaulasManager paraulasManager;
     private Vista vista;
     private Random rand = new Random();
+    private Config config;
 
     public Controlador() {
         userLogin = new UserLogin();
         paraulasManager = new ParaulasManager();
         vista = new Vista();
+        config = new Config();
     }
 
     public void iniciar() {
@@ -25,7 +27,7 @@ public class Controlador {
                 registre();
                 break;
             default:
-                vista.mostrarMissatge("Opció no vàlida.");
+                vista.mostrarMissatge("Opció no valida.");
         }
     }
 
@@ -34,7 +36,7 @@ public class Controlador {
         String pass = vista.demanarText("Contrasenya: ");
         User u = userLogin.login(usuari, pass);
         if (u != null) {
-            vista.mostrarMissatge("Benvingut " + u.getName() + "!");
+            vista.mostrarMissatge("Benvingut " + u.getName() + ". Tens " + u.getPunts() + " punts.");
             menuPrincipal(u);
         } else {
             vista.mostrarMissatge("Usuari o contrasenya incorrectes.");
@@ -44,15 +46,22 @@ public class Controlador {
     private void registre() {
         String nom = vista.demanarText("Nom: ");
         String usuari = vista.demanarText("Usuari: ");
+
         if (userLogin.existeix(usuari)) {
             vista.mostrarMissatge("Aquest usuari ja existeix.");
             return;
         }
+
         String pass = vista.demanarText("Contrasenya: ");
-        String resposta = vista.demanarText("Vols ser admin? (s/n): ");
-        boolean admin = resposta.trim().equalsIgnoreCase("s");
+
+        boolean admin = userLogin.esBuit();
+
         userLogin.registre(new User(nom, usuari, pass, admin));
-        vista.mostrarMissatge("Usuari registrat correctament!");
+
+        if (admin)
+            vista.mostrarMissatge("Usuari registrat com a ADMIN!");
+        else
+            vista.mostrarMissatge("Usuari registrat correctament!");
     }
 
     private void menuPrincipal(User u) {
@@ -64,10 +73,15 @@ public class Controlador {
                     jugar(u);
                     break;
                 case 2:
-                if (u.isAdmin()) {
-                    afegirParaula();
-                }
-                break;
+                    if (u.isAdmin()) {
+                        afegirParaula();
+                    }
+                    break;
+                case 3:
+                    if (u.isAdmin()) {
+                        editarConfiguracio();
+                    }
+                    break;
             }
         } while (opcio != 0);
     }
@@ -88,13 +102,19 @@ public class Controlador {
             return;
         }
 
+        if (!existeixParaulaCatala(nova.toLowerCase())) {
+            vista.mostrarMissatge("La paraula '" + nova + "' no sembla existir en catala.");
+            return;
+        }
+
         paraulasManager.afegir(nova);
-        vista.mostrarMissatge("Paraula afegida correctament!");
+            vista.mostrarMissatge("Paraula afegida correctament");
     }
 
 
     private void jugar(User u) {
         List<String> paraules = paraulasManager.carregar();
+
         if (paraules.isEmpty()) {
             vista.mostrarMissatge("No hi ha paraules disponibles.");
             return;
@@ -103,19 +123,25 @@ public class Controlador {
         String secreta = paraules.get(rand.nextInt(paraules.size()));
         int mida = secreta.length();
 
-        vista.mostrarMissatge("Comença el joc! La paraula té " + mida + " lletres.");
-        int intents = 6;
+        vista.mostrarMissatge("Comença el joc, La paraula te " + mida + " lletres.");
+        int intents = config.getMaxIntents();
 
         while (intents > 0) {
             String intent = vista.demanarText("Introdueix una paraula: ").trim().toUpperCase();
 
+            if (!existeixParaulaCatala(intent.toLowerCase())) {
+                vista.mostrarMissatge("La paraula '" + intent + "' no existeix en catala.");
+                continue;
+            }
+
+
             if (intent.length() != mida) {
-                vista.mostrarMissatge("La paraula ha de tenir " + mida + " lletres!");
+                vista.mostrarMissatge("La paraula ha de tenir " + mida + " lletres!!!");
                 continue;
             }
 
             if (intent.equals(secreta)) {
-                vista.mostrarMissatge("FELICITAAATS!! L'HAS ENCERTAT :)\n La paraula correcte era: ---" + secreta + " ---");
+                vista.mostrarMissatge("FELICITAAATS!!!😎 L'HAS ENCERTAT :)\n La paraula correcte era: ---" + secreta + " ---");
                 u.addPunts(10);
                 userLogin.guardar();
                 return;
@@ -126,13 +152,10 @@ public class Controlador {
             vista.mostrarMissatge("Et queden " + intents + " intents.");
         }
 
-        vista.mostrarMissatge("Has perdut! La paraula era: " + secreta);
+        vista.mostrarMissatge("HAS PERDUT!!!😂 La paraula era: " + secreta);
     }
 
-
     private void mostrarPistes(String secreta, String intent) {
-        // Si no faig servir el reset despues de cada lletra surt tota la terminal colorida del color de l'ultima lletra
-        // La codificacio de emojis no funciona i per tant he agafat aquesta alternativa
         final String RESET = "\u001B[0m";
         final String VERD = "\u001B[42m";
         final String GROC = "\u001B[43m";
@@ -151,6 +174,60 @@ public class Controlador {
         System.out.println("\n");
     }
 
+    private void editarConfiguracio() {
+        vista.mostrarMissatge("\n--- CONFIGURACIÓ ACTUAL ---");
+        vista.mostrarMissatge("VersiO: " + config.getVersio());
+        vista.mostrarMissatge("Max intents: " + config.getMaxIntents());
+
+        String novaVersio = vista.demanarText("Nova versiO (buit per mantenir): ").trim();
+        String nousIntents = vista.demanarText("Nous intents (buit per mantenir): ").trim();
+
+        if (!novaVersio.isEmpty()) config.setVersio(novaVersio);
+
+        if (!nousIntents.isEmpty()) {
+            try {
+                config.setMaxIntents(Integer.parseInt(nousIntents));
+            } catch (NumberFormatException e) {
+                vista.mostrarMissatge("Valor d’intents no valid.");
+            }
+        }
+
+        config.guardar();
+        vista.mostrarMissatge("Configuracio actualitzada!");
+    }
+
+    private boolean existeixParaulaCatala(String paraula) {
+        try {
+            String urlStr = "https://api.mymemory.translated.net/get?q=" + paraula + "&langpair=ca|es";
+            java.net.URL url = new java.net.URL(urlStr);
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(conn.getInputStream(), "UTF-8"));
+            StringBuilder resposta = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                resposta.append(line);
+            }
+            reader.close();
+
+            String jsonText = resposta.toString();
+            int start = jsonText.indexOf("\"translatedText\":\"");
+            if (start == -1) return false;
+            start += "\"translatedText\":\"".length();
+            int end = jsonText.indexOf("\"", start);
+            if (end == -1) return false;
+
+            String traduccio = jsonText.substring(start, end);
+
+            return !(traduccio.equalsIgnoreCase(paraula) || traduccio.isEmpty());
+
+        } catch (Exception e) {
+            System.err.println("Error comprovant la paraula: " + e.getMessage());
+            return false;
+        }
+    }
 
     public static void main(String[] args) { 
         new Controlador().iniciar(); 

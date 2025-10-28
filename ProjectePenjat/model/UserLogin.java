@@ -10,6 +10,11 @@ public class UserLogin {
         carregar();
     }
 
+    public boolean esBuit() {
+        return usuaris.isEmpty();
+    }
+
+
     public void carregar() {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(FILE))) {
             usuaris = (ArrayList<User>) ois.readObject();
